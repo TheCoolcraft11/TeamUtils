@@ -1,0 +1,23 @@
+name: TeamUtils
+version: '1.0-SNAPSHOT'
+main: de.thecoolcraft11.teamUtils.TeamUtils
+api-version: '1.21'
+commands:
+  p:
+    description: Send a public chat message
+    usage: /p <message>
+  bgive:
+    description: Give a Team Backpack to a player (must be in a team)
+    usage: /bgive <player>
+    permission: teamutils.bgive
+  teamutils:
+    description: Enable or disable TeamUtils globally or per-team
+    usage: /teamutils <enable|disable> [global|team <teamname>]
+    permission: teamutils.toggle
+permissions:
+  teamutils.bgive:
+    description: Allows giving a Team Backpack to a player
+    default: op
+  teamutils.toggle:
+    description: Allows toggling TeamUtils on/off globally or per-team
+    default: op
