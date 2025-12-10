@@ -14,10 +14,33 @@ commands:
     description: Enable or disable TeamUtils globally or per-team
     usage: /teamutils <enable|disable> [global|team <teamname>]
     permission: teamutils.toggle
+  backpackgive:
+    description: Give items to a team's backpack
+    usage: /backpackgive <team> <item> [amount]
+    permission: teamutils.admin
+  backpackclear:
+    description: Clear all items from a team's backpack
+    usage: /backpackclear <team>
+    permission: teamutils.admin
+  backpackreplace:
+    description: Replace an item in a team's backpack at a specific slot
+    usage: /backpackreplace <team> <slot> <item> [amount]
+    permission: teamutils.admin
+  backpackview:
+    description: View the contents of a team's backpack
+    usage: /backpackview <team>
+    permission: teamutils.admin
+  teamsendmsg:
+    description: Send a message to all members of a team
+    usage: /teamsendmsg <team> <message>
+    permission: teamutils.admin
 permissions:
   teamutils.bgive:
     description: Allows giving a Team Backpack to a player
     default: op
   teamutils.toggle:
     description: Allows toggling TeamUtils on/off globally or per-team
+    default: op
+  teamutils.admin:
+    description: Allows admin commands for managing backpacks and sending team messages
     default: op
