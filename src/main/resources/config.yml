@@ -1,0 +1,31 @@
+# TeamUtils Configuration
+# This file controls the behavior of the TeamUtils plugin
+
+settings:
+  # Global enable/disable switch for all TeamUtils features
+  global-enabled: true
+
+  # Default chat enabled for teams (can be overridden per-team)
+  default-chat-enabled: true
+
+  # Default backpack enabled for teams (can be overridden per-team)
+  default-backpack-enabled: true
+
+  # Default backpack size for teams (can be overridden per-team)
+  # Valid sizes: 9, 18, 27, 36, 45, 54
+  default-backpack-size: 54
+
+# Team-specific configurations
+# Add team names as keys to override default settings
+teams:
+# Example team configuration:
+# Red:
+#   chat-enabled: true
+#   backpack-enabled: true
+#   backpack-size: 27
+#
+# Blue:
+#   chat-enabled: false
+#   backpack-enabled: true
+#   backpack-size: 45
+

@@ -34,6 +34,10 @@ commands:
     description: Send a message to all members of a team
     usage: /teamsendmsg <team> <message>
     permission: teamutils.admin
+  teamconfig:
+    description: Configure team chat and backpack settings
+    usage: /teamconfig <team> <chat|backpack> <enable|disable|size <amount>>
+    permission: teamutils.admin
 permissions:
   teamutils.bgive:
     description: Allows giving a Team Backpack to a player

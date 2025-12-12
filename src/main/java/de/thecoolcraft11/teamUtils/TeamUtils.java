@@ -45,13 +45,18 @@ public final class TeamUtils extends JavaPlugin implements Listener {
     private static final String PERM_ADMIN = "teamutils.admin";
     private int ensureTaskId = -1;
 
+    private ConfigManager configManager;
 
     private boolean globallyEnabled = true;
-    private final Set<String> disabledTeams = new HashSet<>();
 
     @Override
     public void onEnable() {
         bundleKey = new NamespacedKey(this, "team_bundle");
+
+
+        configManager = new ConfigManager(this);
+        globallyEnabled = configManager.isGlobalChatEnabled();
+
         PluginManager pm = getServer().getPluginManager();
         pm.registerEvents(this, this);
         if (getCommand("p") != null) {
@@ -77,6 +82,9 @@ public final class TeamUtils extends JavaPlugin implements Listener {
         }
         if (getCommand("teamsendmsg") != null) {
             Objects.requireNonNull(getCommand("teamsendmsg")).setExecutor(new AdminSendMsgCommand());
+        }
+        if (getCommand("teamconfig") != null) {
+            Objects.requireNonNull(getCommand("teamconfig")).setExecutor(new TeamConfigCommand());
         }
 
         ensureTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
@@ -106,7 +114,7 @@ public final class TeamUtils extends JavaPlugin implements Listener {
         if (!globallyEnabled) return;
         Player player = event.getPlayer();
         Team team = getPlayerTeam(player);
-        if (team != null && disabledTeams.contains(team.getName())) return;
+        if (team != null && !configManager.isTeamChatEnabled(team.getName())) return;
         if (team != null) {
             event.setCancelled(true);
             Component msg = Component.text("[Team] ", NamedTextColor.AQUA)
@@ -130,14 +138,15 @@ public final class TeamUtils extends JavaPlugin implements Listener {
         if (isTeamBundle(used)) {
             Player player = event.getPlayer();
             Team team = getPlayerTeam(player);
-            if (team != null && disabledTeams.contains(team.getName())) {
-                player.sendMessage(Component.text("Team utilities are disabled for your team.", NamedTextColor.RED));
+            if (team != null && configManager.isTeamBackpackDisabled(team.getName())) {
+                player.sendMessage(Component.text("Team backpack is disabled for your team.", NamedTextColor.RED));
                 event.setCancelled(true);
                 return;
             }
             if (team != null) {
                 event.setCancelled(true);
-                Inventory inv = teamBackpacks.computeIfAbsent(team.getName(), k -> Bukkit.createInventory(null, 54, BUNDLE_NAME));
+                int size = configManager.getTeamBackpackSize(team.getName());
+                Inventory inv = teamBackpacks.computeIfAbsent(team.getName(), k -> Bukkit.createInventory(null, size, BUNDLE_NAME));
                 player.openInventory(inv);
             }
         }
@@ -219,7 +228,7 @@ public final class TeamUtils extends JavaPlugin implements Listener {
     private void ensurePlayerHasBundle(Player player) {
         if (!globallyEnabled) return;
         Team team = getPlayerTeam(player);
-        if (team != null && disabledTeams.contains(team.getName())) return;
+        if (team != null && configManager.isTeamBackpackDisabled(team.getName())) return;
         if (team != null && !hasTeamBundle(player)) {
             ItemStack bundle = createTeamBundle();
             HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(bundle);
@@ -367,6 +376,7 @@ public final class TeamUtils extends JavaPlugin implements Listener {
             if (args.length == 1 || (args.length == 2 && args[1].equalsIgnoreCase("global"))) {
 
                 globallyEnabled = enable;
+                configManager.setGlobalEnabled(enable);
                 if (enable) {
                     sender.sendMessage(Component.text("TeamUtils enabled globally.", NamedTextColor.GREEN));
                 } else {
@@ -389,11 +399,13 @@ public final class TeamUtils extends JavaPlugin implements Listener {
                     return true;
                 }
 
+
+                configManager.setTeamChatEnabled(team.getName(), enable);
+                configManager.setTeamBackpackEnabled(team.getName(), enable);
+
                 if (enable) {
-                    disabledTeams.remove(team.getName());
                     sender.sendMessage(Component.text("TeamUtils enabled for team '" + team.getName() + "'.", NamedTextColor.GREEN));
                 } else {
-                    disabledTeams.add(team.getName());
                     sender.sendMessage(Component.text("TeamUtils disabled for team '" + team.getName() + "'.", NamedTextColor.YELLOW));
                 }
                 return true;
@@ -443,7 +455,8 @@ public final class TeamUtils extends JavaPlugin implements Listener {
                 }
             }
 
-            Inventory inv = teamBackpacks.computeIfAbsent(team.getName(), k -> Bukkit.createInventory(null, 54, BUNDLE_NAME));
+            int size = configManager.getTeamBackpackSize(team.getName());
+            Inventory inv = teamBackpacks.computeIfAbsent(team.getName(), k -> Bukkit.createInventory(null, size, BUNDLE_NAME));
             inv.addItem(new ItemStack(material, amount));
 
             sender.sendMessage(Component.text("Added " + amount + "x " + material.name() + " to team '" + team.getName() + "'.", NamedTextColor.GREEN));
@@ -511,8 +524,9 @@ public final class TeamUtils extends JavaPlugin implements Listener {
                 return true;
             }
 
-            if (slot < 0 || slot >= 54) {
-                sender.sendMessage(Component.text("Slot must be between 0 and 53.", NamedTextColor.RED));
+            int size = configManager.getTeamBackpackSize(team.getName());
+            if (slot < 0 || slot >= size) {
+                sender.sendMessage(Component.text("Slot must be between 0 and " + (size - 1) + ".", NamedTextColor.RED));
                 return true;
             }
 
@@ -535,7 +549,7 @@ public final class TeamUtils extends JavaPlugin implements Listener {
                 }
             }
 
-            Inventory inv = teamBackpacks.computeIfAbsent(team.getName(), k -> Bukkit.createInventory(null, 54, BUNDLE_NAME));
+            Inventory inv = teamBackpacks.computeIfAbsent(team.getName(), k -> Bukkit.createInventory(null, size, BUNDLE_NAME));
             inv.setItem(slot, new ItemStack(material, amount));
 
             sender.sendMessage(Component.text("Replaced slot " + slot + " in team '" + team.getName() + "' with " + amount + "x " + material.name() + ".", NamedTextColor.GREEN));
@@ -614,6 +628,101 @@ public final class TeamUtils extends JavaPlugin implements Listener {
 
             sender.sendMessage(Component.text("Sent message to " + count + " player(s) in team '" + team.getName() + "'.", NamedTextColor.GREEN));
             return true;
+        }
+    }
+
+    public class TeamConfigCommand implements CommandExecutor {
+        @Override
+        public boolean onCommand(CommandSender sender, @NotNull Command command, @NotNull String label, String @NotNull [] args) {
+            if (!sender.hasPermission(PERM_ADMIN)) {
+                sender.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
+                return true;
+            }
+
+            if (args.length < 2) {
+                sender.sendMessage(Component.text("Usage: /teamconfig <team> <chat|backpack> <enable|disable|size <amount>>", NamedTextColor.YELLOW));
+                sender.sendMessage(Component.text("Examples:", NamedTextColor.YELLOW));
+                sender.sendMessage(Component.text("  /teamconfig Red chat enable - Enable chat for Red team", NamedTextColor.GRAY));
+                sender.sendMessage(Component.text("  /teamconfig Blue backpack disable - Disable backpack for Blue team", NamedTextColor.GRAY));
+                sender.sendMessage(Component.text("  /teamconfig Green backpack size 27 - Set backpack size to 27 slots", NamedTextColor.GRAY));
+                return true;
+            }
+
+            String teamName = args[0];
+            Team team = Bukkit.getScoreboardManager().getMainScoreboard().getTeam(teamName);
+            if (team == null) {
+                sender.sendMessage(Component.text("Team '" + teamName + "' not found.", NamedTextColor.RED));
+                return true;
+            }
+
+            String feature = args[1].toLowerCase();
+            if (!feature.equals("chat") && !feature.equals("backpack")) {
+                sender.sendMessage(Component.text("Feature must be 'chat' or 'backpack'.", NamedTextColor.RED));
+                return true;
+            }
+
+            if (args.length < 3) {
+                sender.sendMessage(Component.text("Usage: /teamconfig <team> " + feature + " <enable|disable|size <amount>>", NamedTextColor.RED));
+                return true;
+            }
+
+            String action = args[2].toLowerCase();
+
+            if (feature.equals("chat")) {
+                if (action.equals("enable")) {
+                    configManager.setTeamChatEnabled(team.getName(), true);
+                    sender.sendMessage(Component.text("Team chat enabled for '" + team.getName() + "'.", NamedTextColor.GREEN));
+                    return true;
+                } else if (action.equals("disable")) {
+                    configManager.setTeamChatEnabled(team.getName(), false);
+                    sender.sendMessage(Component.text("Team chat disabled for '" + team.getName() + "'.", NamedTextColor.GREEN));
+                    return true;
+                } else {
+                    sender.sendMessage(Component.text("For chat, use 'enable' or 'disable'.", NamedTextColor.RED));
+                    return true;
+                }
+            }
+
+            switch (action) {
+                case "enable" -> {
+                    configManager.setTeamBackpackEnabled(team.getName(), true);
+                    sender.sendMessage(Component.text("Team backpack enabled for '" + team.getName() + "'.", NamedTextColor.GREEN));
+                    return true;
+                }
+                case "disable" -> {
+                    configManager.setTeamBackpackEnabled(team.getName(), false);
+                    sender.sendMessage(Component.text("Team backpack disabled for '" + team.getName() + "'.", NamedTextColor.GREEN));
+                    return true;
+                }
+                case "size" -> {
+                    if (args.length < 4) {
+                        sender.sendMessage(Component.text("Usage: /teamconfig " + team.getName() + " backpack size <amount>", NamedTextColor.RED));
+                        return true;
+                    }
+                    int size;
+                    try {
+                        size = Integer.parseInt(args[3]);
+                    } catch (NumberFormatException e) {
+                        sender.sendMessage(Component.text("Invalid size. Must be a number.", NamedTextColor.RED));
+                        return true;
+                    }
+
+                    if (size < 1 || size > 54) {
+                        sender.sendMessage(Component.text("Size must be between 1 and 54.", NamedTextColor.RED));
+                        return true;
+                    }
+
+                    configManager.setTeamBackpackSize(team.getName(), size);
+                    int normalizedSize = configManager.getTeamBackpackSize(team.getName());
+                    sender.sendMessage(Component.text("Team backpack size set to " + normalizedSize + " slots for '" + team.getName() + "'.", NamedTextColor.GREEN));
+                    return true;
+                }
+                default -> {
+                    sender.sendMessage(Component.text("For backpack, use 'enable', 'disable', or 'size <amount>'.", NamedTextColor.RED));
+                    return true;
+                }
+            }
+
         }
     }
 }
