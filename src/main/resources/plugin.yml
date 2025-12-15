@@ -2,6 +2,9 @@ name: TeamUtils
 version: '1.0-SNAPSHOT'
 main: de.thecoolcraft11.teamUtils.TeamUtils
 api-version: '1.21'
+description: A plugin with simple team utilities
+author: TheCoolcraft11
+website: https://github.com/TheCoolcraft11/SharedHearts
 commands:
   p:
     description: Send a public chat message
